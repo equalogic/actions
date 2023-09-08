@@ -341,7 +341,7 @@ jobs:
   deploy:
     needs: [prepare, container]
     if: always() && (needs.prepare.outputs.existing-image-found == 'true' || needs.container.outputs.image-pushed == 'true')
-    name: Deploy
+    name: Service update
     environment: ${{ inputs.stage }}
     runs-on: ubuntu-latest
     steps:
