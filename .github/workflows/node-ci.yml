@@ -1,0 +1,125 @@
+name: Node CI
+
+on:
+  workflow_call:
+    inputs:
+      build-check-command:
+        description: Command to run after building the application to check it worked correctly
+        required: false
+        type: string
+      eslint-args:
+        description: Arguments passed to ESLint
+        required: false
+        default: "--ext '.ts,.js'"
+        type: string
+
+jobs:
+  dependencies:
+    name: Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js and NPM
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          always-auth: true
+          registry-url: https://registry.npmjs.org
+      - name: Setup GitHub package registry authentication
+        uses: actions/setup-node@v3
+        with:
+          registry-url: 'https://npm.pkg.github.com'
+          always-auth: true
+          token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      - name: Install dependencies with NPM
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      - name: Archive node_modules
+        run: tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P node_modules
+      - name: Persisting node_modules artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: node_modules.tar.zstd
+          path: node_modules.tar.zstd
+          retention-days: 2
+
+  lint:
+    name: Lint
+    needs: [dependencies]
+    runs-on: ubuntu-latest
+    steps:
+      # Setup
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.BUILD_USER_TOKEN || github.token }} # allows commit of any fixes to trigger a new workflow run
+      - name: Setup Node.js and NPM
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: .nvmrc
+      - name: Restore node_modules artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: node_modules.tar.zstd
+      - name: Unarchive node_modules
+        run: tar --use-compress-program "zstd -d --long=31" -xf node_modules.tar.zstd
+      # Commit Signing
+      - name: Import build user's GPG key
+        env:
+          # This use of env vars is necessary because 'if' conditions can't access the secrets context directly
+          GPG_KEY: ${{ secrets.BUILD_USER_GPG_KEY }}
+          GPG_KEY_PASSPHRASE: ${{ secrets.BUILD_USER_GPG_KEY_PASSPHRASE }}
+        if: env.GPG_KEY != null && env.GPG_KEY_PASSPHRASE != null
+        uses: crazy-max/ghaction-import-gpg@v5
+        with:
+          gpg_private_key: ${{ env.GPG_KEY }}
+          passphrase: ${{ env.GPG_KEY_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+      # Lint
+      - name: Run linters
+        uses: wearerequired/lint-action@v2
+        with:
+          prettier: true
+          eslint: true
+          eslint_args: ${{ inputs.eslint-args }}
+          continue_on_error: false
+          auto_fix: ${{ secrets.BUILD_USER_TOKEN && 'true' || 'false' }}
+          git_name: equabot
+          git_email: git@equalogic.com
+
+  build:
+    name: Build
+    needs: [dependencies]
+    runs-on: ubuntu-latest
+    steps:
+      # Setup
+      - uses: actions/checkout@v3
+      - name: Setup Node.js and NPM
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: .nvmrc
+      - name: Restore node_modules artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: node_modules.tar.zstd
+      - name: Unarchive node_modules
+        run: tar --use-compress-program "zstd -d --long=31" -xf node_modules.tar.zstd
+      # Compile sources
+      - name: Build application
+        run: npm run build
+        env:
+          CI: true
+          SENTRY_DISABLED: true
+      - if: inputs.build-check-command != ''
+        name: Check build worked correctly
+        run: ${{ inputs.build-check-command }}
+      - name: Archive build
+        run: tar --use-compress-program "zstd -T0 --long=31 -1" -cf dist.tar.zstd -P dist
+      - name: Persisting build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist.tar.zstd
+          path: dist.tar.zstd
+          retention-days: 1
