@@ -236,7 +236,7 @@ jobs:
         name: Check build worked correctly
         run: ${{ inputs.build-check-command }}
       # Upload static assets to S3
-      - if: inputs.static-path != ''
+      - if: inputs.static-source-path != ''
         name: Notify Slack
         uses: equalogic/action-slack-notify-build@v2.0.0
         env:
