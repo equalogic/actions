@@ -17,6 +17,11 @@ on:
         description: Command to run after building the application to check it worked correctly
         required: false
         type: string
+      dist-paths:
+        description: Paths to build artifacts to be archived
+        required: false
+        default: dist
+        type: string
       eslint-args:
         description: Arguments passed to ESLint
         required: false
@@ -126,7 +131,7 @@ jobs:
         name: Check build worked correctly
         run: ${{ inputs.build-check-command }}
       - name: Archive build
-        run: tar --use-compress-program "zstd -T0 --long=31 -1" -cf dist.tar.zstd -P dist
+        run: tar --use-compress-program "zstd -T0 --long=31 -1" -cf dist.tar.zstd -P ${{ inputs.dist-paths }}
       - name: Persisting build artifact
         uses: actions/upload-artifact@v3
         with:
