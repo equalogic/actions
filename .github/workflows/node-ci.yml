@@ -3,6 +3,11 @@ name: Node CI
 on:
   workflow_call:
     inputs:
+      install-command:
+        description: Command to install dependencies
+        required: false
+        default: npm ci
+        type: string
       build-check-command:
         description: Command to run after building the application to check it worked correctly
         required: false
@@ -32,8 +37,8 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           always-auth: true
           token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
-      - name: Install dependencies with NPM
-        run: npm ci
+      - name: Install dependencies
+        run: ${{ inputs.install-command }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       - name: Archive node_modules

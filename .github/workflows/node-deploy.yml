@@ -11,6 +11,11 @@ on:
         description: Application name
         required: true
         type: string
+      install-command:
+        description: Command to install dependencies
+        required: false
+        default: npm ci --production=false
+        type: string
       build-check-command:
         description: Command to run after building the application to check it worked correctly
         required: false
@@ -211,8 +216,8 @@ jobs:
           channel: ${{ inputs.slack-channel }}
           status: '🧰 1/4: Installing dependencies...'
           color: '#ff9933'
-      - name: Install dependencies with NPM
-        run: npm ci --production=false
+      - name: Install dependencies
+        run: ${{ inputs.install-command }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       # Compile sources
