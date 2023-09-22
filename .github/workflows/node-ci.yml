@@ -8,6 +8,11 @@ on:
         required: false
         default: npm ci
         type: string
+      node-modules-paths:
+        description: Paths to node_modules directories to be archived
+        required: false
+        default: node_modules
+        type: string
       build-check-command:
         description: Command to run after building the application to check it worked correctly
         required: false
@@ -42,7 +47,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       - name: Archive node_modules
-        run: tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P node_modules
+        run: tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${{ inputs.node-modules-paths }}
       - name: Persisting node_modules artifact
         uses: actions/upload-artifact@v3
         with:
