@@ -25,6 +25,10 @@ on:
         description: Command to run after building the application to check it worked correctly
         required: false
         type: string
+      docker-build-args:
+        description: Additional build arguments to be passed to the Docker image build process
+        required: false
+        type: string
       static-source-path:
         description: Source directory containing static assets to be uploaded to S3 during deployment
         required: false
@@ -301,6 +305,7 @@ jobs:
           build-args: |
             VERSION=${{ env.APP_VERSION }}
             GITHUB_TOKEN=${{ secrets.BUILD_USER_TOKEN || github.token }}
+            ${{ inputs.docker-build-args }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
       - name: Build result
