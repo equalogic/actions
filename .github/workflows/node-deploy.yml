@@ -16,6 +16,11 @@ on:
         required: false
         default: npm ci --production=false
         type: string
+      build-command:
+        description: Command to build the application
+        required: false
+        default: npm run build
+        type: string
       build-check-command:
         description: Command to run after building the application to check it worked correctly
         required: false
@@ -231,7 +236,7 @@ jobs:
           status: '🏗️ 1/4: Building application from source...'
           color: '#ff9933'
       - name: Build application
-        run: npm run build
+        run: ${{ inputs.build-command }}
         env:
           CI: true
           VERSION: ${{ env.APP_VERSION }}

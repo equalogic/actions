@@ -13,6 +13,11 @@ on:
         required: false
         default: node_modules
         type: string
+      build-command:
+        description: Command to build the application
+        required: false
+        default: npm run build
+        type: string
       build-check-command:
         description: Command to run after building the application to check it worked correctly
         required: false
@@ -123,7 +128,7 @@ jobs:
         run: tar --use-compress-program "zstd -d --long=31" -xf node_modules.tar.zstd
       # Compile sources
       - name: Build application
-        run: npm run build
+        run: ${{ inputs.build-command }}
         env:
           CI: true
           SENTRY_DISABLED: true
