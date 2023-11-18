@@ -1,0 +1,70 @@
+name: NPM Publish
+
+on:
+  workflow_call:
+    inputs:
+      install-command:
+        description: Command to install dependencies
+        required: false
+        default: npm ci
+        type: string
+      build-command:
+        description: Command to build the application
+        required: false
+        default: npm run build
+        type: string
+      build-check-command:
+        description: Command to run after building the application to check it worked correctly
+        required: false
+        type: string
+      dist-path:
+        description: Path to build artifacts to be published
+        required: false
+        default: dist/
+        type: string
+      prepare-dist-command:
+        description: Command to run before publishing the build artifacts
+        required: false
+        type: string
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      # Setup
+      - uses: actions/checkout@v3
+      - name: Setup Node.js and NPM
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          always-auth: true
+          registry-url: https://registry.npmjs.org
+      - name: Setup GitHub package registry authentication
+        uses: actions/setup-node@v3
+        with:
+          registry-url: 'https://npm.pkg.github.com'
+          always-auth: true
+          token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      - name: Install dependencies
+        run: ${{ inputs.install-command }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      # Build
+      - name: Build application
+        run: ${{ inputs.build-command }}
+        env:
+          CI: true
+          NODE_ENV: production
+      - if: inputs.build-check-command != ''
+        name: Check build worked correctly
+        run: ${{ inputs.build-check-command }}
+      # Publish
+      - if: inputs.prepare-dist-command != ''
+        name: Prepare release artifact
+        run: prepare-dist-command
+      - name: Publish release to NPM registry
+        run: npm publish ${{ inputs.dist-path }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
