@@ -63,7 +63,7 @@ jobs:
       # Publish
       - if: inputs.prepare-dist-command != ''
         name: Prepare release artifact
-        run: prepare-dist-command
+        run: ${{ inputs.prepare-dist-command }}
       - name: Publish release to NPM registry
         run: npm publish ${{ inputs.dist-path }}
         env:
