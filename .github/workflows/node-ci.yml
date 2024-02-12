@@ -30,7 +30,7 @@ on:
       eslint-args:
         description: Arguments passed to ESLint
         required: false
-        default: "--ext '.ts,.js'"
+        default: "--ext '.ts,.js' --ignore-path '.gitignore' --ignore-pattern '.github/*'"
         type: string
 
 jobs:
