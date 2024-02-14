@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:js-lib",
+    ":automergeMinor",
+    ":automergeBranch",
+    ":automergeRequireAllStatusChecks",
+    ":dependencyDashboard",
+    ":semanticCommitsDisabled"
+  ],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+  "prCreation": "not-pending",
+  "stabilityDays": 3,
+  "rebaseWhen": "conflicted",
+  "lockFileMaintenance": true,
+  "labels": [
+    "dependencies"
+  ],
+  "reviewers": []
+}
