@@ -113,7 +113,7 @@ jobs:
           color: '#663399'
       # Parameters and authentication
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.DEPLOY_AWS_ROLE_ARN }}
           role-session-name: gh-actions
@@ -184,7 +184,7 @@ jobs:
           echo APP_VERSION_SHA="${GITHUB_SHA:0:7}" >> $GITHUB_ENV
       # Parameters and authentication
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.DEPLOY_AWS_ROLE_ARN }}
           role-session-name: gh-actions
@@ -368,7 +368,7 @@ jobs:
           echo APP_VERSION="${STAGE}-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
       # Parameters and authentication
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.DEPLOY_AWS_ROLE_ARN }}
           role-session-name: gh-actions
