@@ -397,7 +397,7 @@ jobs:
           status: '📦 3/4: Tagging container image'
           color: '#ff9933'
       - name: Apply ${{ inputs.stage }} tag to Docker image
-        uses: akhilerm/tag-push-action@v2.1.0
+        uses: akhilerm/tag-push-action@v2.2.0
         with:
           src: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}:${{ env.IMAGE_VERSION }}
           dst: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}:${{ inputs.stage }}
