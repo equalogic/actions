@@ -1,0 +1,54 @@
+name: Node Run
+
+on:
+  workflow_call:
+    inputs:
+      workspaces:
+        description: Paths where dependencies are to be installed
+        required: false
+        default: ./
+        type: string
+      install-command:
+        description: Command to install dependencies
+        required: false
+        default: npm ci
+        type: string
+      run-command:
+        description: Command to be run
+        required: true
+        type: string
+
+jobs:
+  run:
+    name: Run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js and NPM
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          always-auth: true
+          registry-url: https://registry.npmjs.org
+      - name: Setup GitHub package registry authentication
+        uses: actions/setup-node@v3
+        with:
+          registry-url: 'https://npm.pkg.github.com'
+          always-auth: true
+          token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      - name: Install dependencies
+        run: |
+          workspaces=(${{ inputs.workspaces }})
+          for workspace in $workspaces; do
+            echo "----------------------------------------"
+            echo "Installing dependencies in $workspace"
+            pushd $workspace
+            ${{ inputs.install-command }}
+            popd
+            echo "----------------------------------------"
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      - name: Run command
+        run: ${{ inputs.run-command }}
