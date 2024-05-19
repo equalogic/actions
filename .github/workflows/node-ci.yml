@@ -3,6 +3,11 @@ name: Node CI
 on:
   workflow_call:
     inputs:
+      workspaces:
+        description: Paths where dependencies are to be installed
+        required: false
+        default: ./
+        type: string
       install-command:
         description: Command to install dependencies
         required: false
@@ -11,8 +16,8 @@ on:
       node-modules-paths:
         description: Paths to node_modules directories to be archived
         required: false
-        default: node_modules
         type: string
+        deprecationMessage: This input is deprecated. Use 'workspaces' instead.
       build-command:
         description: Command to build the application
         required: false
@@ -53,11 +58,26 @@ jobs:
           always-auth: true
           token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       - name: Install dependencies
-        run: ${{ inputs.install-command }}
+        run: |
+          workspaces=(${{ inputs.workspaces }})
+          for workspace in $workspaces; do
+            echo "----------------------------------------"
+            echo "Installing dependencies in $workspace"
+            pushd $workspace
+            ${{ inputs.install-command }}
+            popd
+            echo "----------------------------------------"
+          done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       - name: Archive node_modules
-        run: tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${{ inputs.node-modules-paths }}
+        run: |
+          paths=(${{ inputs.node-modules-paths }})
+          if [ -z "$paths" ]; then
+            workspaces=(${{ inputs.workspaces }})
+            paths=("${workspaces[@]/%/\/node_modules}")
+          fi
+          tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${paths[@]}
       - name: Persisting node_modules artifact
         uses: actions/upload-artifact@v4
         with:
