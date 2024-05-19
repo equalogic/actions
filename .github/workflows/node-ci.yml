@@ -17,7 +17,6 @@ on:
         description: Paths to node_modules directories to be archived
         required: false
         type: string
-        deprecationMessage: This input is deprecated. Use 'workspaces' instead.
       build-command:
         description: Command to build the application
         required: false
