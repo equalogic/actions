@@ -58,7 +58,7 @@ jobs:
           token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       - name: Install dependencies
         run: |
-          workspaces=(${{ inputs.workspaces }})
+          workspaces=("${{ inputs.workspaces }}")
           for workspace in $workspaces; do
             echo "----------------------------------------"
             echo "Installing dependencies in $workspace"
@@ -71,9 +71,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       - name: Archive node_modules
         run: |
-          paths=(${{ inputs.node-modules-paths }})
+          paths=("${{ inputs.node-modules-paths }}")
           if [ -z "$paths" ]; then
-            workspaces=(${{ inputs.workspaces }})
+            workspaces=("${{ inputs.workspaces }}")
             paths=("${workspaces[@]/%/\/node_modules}")
           fi
           tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${paths[@]}
