@@ -40,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           read -a workspaces <<< "${{ inputs.workspaces }}"
-          for workspace in $workspaces; do
+          for workspace in "${workspaces[@]}"; do
             echo "----------------------------------------"
             echo "Installing dependencies in $workspace"
             pushd $workspace
