@@ -71,8 +71,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       - name: Archive node_modules
         run: |
-          paths=("${{ inputs.node-modules-paths }}")
-          if [ -z "$paths" ]; then
+          if [ -n "${{ inputs.node-modules-paths }}" ]; then
+            paths=("${{ inputs.node-modules-paths }}")
+          else
             workspaces=("${{ inputs.workspaces }}")
             paths=("${workspaces[@]/%/\/node_modules}")
           fi
