@@ -260,7 +260,8 @@ jobs:
           path: node_modules.tar.zstd
           retention-days: 2
       # Compile sources
-      - name: Notify Slack
+      - if: inputs.build-command != ''
+        name: Notify Slack
         uses: equalogic/action-slack-notify-build@v2.0.0
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
@@ -269,7 +270,8 @@ jobs:
           channel: ${{ inputs.slack-channel }}
           status: '🏗️ 1/4: Building application from source...'
           color: '#ff9933'
-      - name: Build application
+      - if: inputs.build-command != ''
+        name: Build application
         run: ${{ inputs.build-command }}
         env:
           CI: true
