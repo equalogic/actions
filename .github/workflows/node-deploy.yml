@@ -19,7 +19,7 @@ on:
       install-command:
         description: Command to install dependencies
         required: false
-        default: npm ci --production=false
+        default: npm ci --include=prod --include=dev --include=optional
         type: string
       build-command:
         description: Command to build the application
