@@ -243,6 +243,22 @@ jobs:
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      - name: Archive node_modules
+        run: |
+          if [ -n "${{ inputs.node-modules-paths }}" ]; then
+            read -a paths <<< "${{ inputs.node-modules-paths }}"
+          else
+            read -a workspaces <<< "${{ inputs.workspaces }}"
+            paths=("${workspaces[@]/%/\/node_modules}")
+          fi
+          echo "Paths to be archived:" ${paths[@]}
+          tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${paths[@]}
+      - name: Persisting node_modules artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node_modules.tar.zstd
+          path: node_modules.tar.zstd
+          retention-days: 2
       # Compile sources
       - name: Notify Slack
         uses: equalogic/action-slack-notify-build@v2.0.0
