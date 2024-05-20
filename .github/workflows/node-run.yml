@@ -45,8 +45,8 @@ jobs:
             echo "Installing dependencies in $workspace"
             pushd $workspace
             ${{ inputs.install-command }}
-            popd
             echo "----------------------------------------"
+            popd
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
