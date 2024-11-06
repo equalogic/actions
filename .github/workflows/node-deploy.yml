@@ -253,13 +253,10 @@ jobs:
             read -a paths <<< "${{ inputs.node-modules-paths }}"
           else
             read -a workspaces <<< "${{ inputs.workspaces }}"
-            paths=("${workspaces[@]/%/\/node_modules}")
-            npm_workspace_json=$(npm query .workspace)
-            echo "NPM Workspaces config:"
-            echo "$npm_workspace_json"
-            if [ $npm_workspace_json != '[]']; then
-              paths+=($(echo $npm_workspace_json | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.path+'/node_modules').join('\n'))"))
-            fi
+            paths=(
+              "${workspaces[@]/%/\/node_modules}"
+              $(npm query .workspace | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.path+'/node_modules').join('\n'))")
+            )
           fi
           echo "Paths to be archived:"
           echo ${paths[@]}
