@@ -81,8 +81,8 @@ jobs:
             paths=("${workspaces[@]/%/\/node_modules}")
             npm_workspace_json=$(npm query .workspace)
             echo "NPM Workspaces config:"
-            echo $npm_workspace_json
-            if [ $npm_workspace_json != "[]" ]; then
+            echo "$npm_workspace_json"
+            if [ $npm_workspace_json != '[]']; then
               paths+=($(echo $npm_workspace_json | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.path+'/node_modules').join('\n'))"))
             fi
           fi

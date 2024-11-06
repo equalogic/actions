@@ -252,15 +252,17 @@ jobs:
           if [ -n "${{ inputs.node-modules-paths }}" ]; then
             read -a paths <<< "${{ inputs.node-modules-paths }}"
           else
+            read -a workspaces <<< "${{ inputs.workspaces }}"
+            paths=("${workspaces[@]/%/\/node_modules}")
             npm_workspace_json=$(npm query .workspace)
-            if [ $npm_workspace_json != "[]" ]; then
-              paths=($(echo $npm_workspace_json | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.path + '/node_modules').join('\n'))"))
-            else
-              read -a workspaces <<< "${{ inputs.workspaces }}"
-              paths=("${workspaces[@]/%/\/node_modules}")
+            echo "NPM Workspaces config:"
+            echo "$npm_workspace_json"
+            if [ $npm_workspace_json != '[]']; then
+              paths+=($(echo $npm_workspace_json | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.path+'/node_modules').join('\n'))"))
             fi
           fi
-          echo "Paths to be archived:" ${paths[@]}
+          echo "Paths to be archived:"
+          echo ${paths[@]}
           tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${paths[@]}
       - if: inputs.workspaces != ''
         name: Persisting node_modules artifact
