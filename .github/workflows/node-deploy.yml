@@ -14,7 +14,7 @@ on:
       workspaces:
         description: Paths where dependencies are to be installed
         required: false
-        default: ./
+        default: .
         type: string
       install-command:
         description: Command to install dependencies
