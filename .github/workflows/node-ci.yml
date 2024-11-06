@@ -50,13 +50,15 @@ jobs:
           cache: npm
           always-auth: true
           registry-url: https://registry.npmjs.org
-      - name: Setup GitHub package registry authentication
+      - if: inputs.workspaces != ''
+        name: Setup GitHub package registry authentication
         uses: actions/setup-node@v3
         with:
           registry-url: 'https://npm.pkg.github.com'
           always-auth: true
           token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
-      - name: Install dependencies
+      - if: inputs.workspaces != ''
+        name: Install dependencies
         run: |
           read -a workspaces <<< "${{ inputs.workspaces }}"
           for workspace in "${workspaces[@]}"; do
@@ -69,17 +71,24 @@ jobs:
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
-      - name: Archive node_modules
+      - if: inputs.workspaces != ''
+        name: Archive node_modules
         run: |
           if [ -n "${{ inputs.node-modules-paths }}" ]; then
             read -a paths <<< "${{ inputs.node-modules-paths }}"
           else
-            read -a workspaces <<< "${{ inputs.workspaces }}"
-            paths=("${workspaces[@]/%/\/node_modules}")
+            npm_workspace_json=$(npm query .workspace)
+            if [ $npm_workspace_json != "[]" ]; then
+              paths=($(echo $npm_workspace_json | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.path + '/node_modules').join('\n'))"))
+            else
+              read -a workspaces <<< "${{ inputs.workspaces }}"
+              paths=("${workspaces[@]/%/\/node_modules}")
+            fi
           fi
           echo "Paths to be archived:" ${paths[@]}
           tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${paths[@]}
-      - name: Persisting node_modules artifact
+      - if: inputs.workspaces != ''
+        name: Persisting node_modules artifact
         uses: actions/upload-artifact@v4
         with:
           name: node_modules.tar.zstd

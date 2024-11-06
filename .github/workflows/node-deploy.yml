@@ -252,8 +252,13 @@ jobs:
           if [ -n "${{ inputs.node-modules-paths }}" ]; then
             read -a paths <<< "${{ inputs.node-modules-paths }}"
           else
-            read -a workspaces <<< "${{ inputs.workspaces }}"
-            paths=("${workspaces[@]/%/\/node_modules}")
+            npm_workspace_json=$(npm query .workspace)
+            if [ $npm_workspace_json != "[]" ]; then
+              paths=($(echo $npm_workspace_json | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.path + '/node_modules').join('\n'))"))
+            else
+              read -a workspaces <<< "${{ inputs.workspaces }}"
+              paths=("${workspaces[@]/%/\/node_modules}")
+            fi
           fi
           echo "Paths to be archived:" ${paths[@]}
           tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${paths[@]}
