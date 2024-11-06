@@ -80,7 +80,7 @@ jobs:
             read -a workspaces <<< "${{ inputs.workspaces }}"
             paths=(
               "${workspaces[@]/%/\/node_modules}"
-              $(npm query .workspace | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.path+'/node_modules').join('\n'))")
+              $(npm query .workspace | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.location+'/node_modules').join('\n'))")
             )
           fi
           echo "Paths to be archived:"
