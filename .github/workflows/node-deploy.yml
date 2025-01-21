@@ -42,11 +42,6 @@ on:
         description: Destination prefix (appended to /$app-name/$version) in S3 where static assets should be uploaded to
         required: false
         type: string
-      slack-channel:
-        description: Slack channel to be notified of deployment progress
-        required: false
-        default: infrastructure
-        type: string
       sentry-release:
         description: Create Sentry release
         required: false
@@ -88,7 +83,6 @@ jobs:
     environment: ${{ inputs.stage }}
     outputs:
       deployment-id: ${{ steps.deployment.outputs.deployment_id }}
-      slack-message-id: ${{ steps.slack.outputs.message_id }}
       existing-image-found: ${{ steps.existing-image.outputs.found }}
     runs-on: ubuntu-latest
     steps:
@@ -107,15 +101,6 @@ jobs:
           environment: ${{ inputs.stage }}
           initial-status: pending
           log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      - name: Notify Slack
-        id: slack
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          channel: ${{ inputs.slack-channel }}
-          status: '⚙️ 1/4: Preparing to deploy'
-          color: '#663399'
       # Parameters and authentication
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v3
@@ -158,16 +143,6 @@ jobs:
           log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - name: 'On failure: Notify Slack'
-        if: failure()
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ steps.slack.outputs.message_id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '☠️ Failed to find container image'
-          color: danger
 
   #
   # container job
@@ -223,16 +198,6 @@ jobs:
           always-auth: true
           token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       - if: inputs.workspaces != ''
-        name: Notify Slack
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '🧰 1/4: Installing dependencies...'
-          color: '#ff9933'
-      - if: inputs.workspaces != ''
         name: Install dependencies
         run: |
           read -a workspaces <<< "${{ inputs.workspaces }}"
@@ -270,16 +235,6 @@ jobs:
           retention-days: 2
       # Compile sources
       - if: inputs.build-command != ''
-        name: Notify Slack
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '🏗️ 1/4: Building application from source...'
-          color: '#ff9933'
-      - if: inputs.build-command != ''
         name: Build application
         run: ${{ inputs.build-command }}
         env:
@@ -292,28 +247,9 @@ jobs:
         run: ${{ inputs.build-check-command }}
       # Upload static assets to S3
       - if: inputs.static-source-path != ''
-        name: Notify Slack
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '📂 2/4: Uploading static assets...'
-          color: '#ff9933'
-      - if: inputs.static-source-path != ''
         name: Upload static assets to S3
         run: aws s3 sync ${{ inputs.static-source-path }} s3://${{ env.STATIC_S3_BUCKET }}/${{ inputs.app-name }}/${{ env.APP_VERSION_SHA }}${{ inputs.static-destination-path }} --no-progress --follow-symlinks --delete
       # Build Docker image
-      - name: Notify Slack
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '📦 2/4: Building container image...'
-          color: '#ff9933'
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Cache Docker layers
@@ -380,16 +316,6 @@ jobs:
           log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - name: 'On failure: Notify Slack'
-        if: failure()
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '☠️ Failed to build container image'
-          color: danger
 
   #
   # deploy job
@@ -428,30 +354,12 @@ jobs:
         with:
           registry: ${{ env.DOCKER_REGISTRY }}
       # Tag Docker image with stage name
-      - name: Notify Slack
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '📦 3/4: Tagging container image'
-          color: '#ff9933'
       - name: Apply ${{ inputs.stage }} tag to Docker image
         uses: akhilerm/tag-push-action@v2.2.0
         with:
           src: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}:${{ env.IMAGE_VERSION }}
           dst: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}:${{ inputs.stage }}
       # Deploy ECS Task
-      - name: Notify Slack
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '🚀 4/4: Deploying service update'
-          color: '#33ccff'
       - name: Deploy ECS task update
         uses: donaldpiret/ecs-deploy@v0.3.0
         with:
@@ -462,15 +370,6 @@ jobs:
             ${{ env.CONTAINER_NAME_APP }} ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}:${{ env.IMAGE_VERSION }}
           rollback: true
           timeout: 600
-      - name: Notify Slack
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '🚀 4/4: Finalising deployment'
-          color: '#33ccff'
       # Publish Apollo schema update
       - if: inputs.graphql-schema-file != '' && inputs.apollo-graph-id != ''
         name: Install Rover
@@ -504,15 +403,6 @@ jobs:
           description: ${{ inputs.app-name }} @ ${{ env.IMAGE_VERSION }} deployed to ${{ inputs.stage }}
           environment-url: https://${{ env.APP_DOMAIN }}${{ env.APP_PATH }}
           log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      - name: Notify Slack
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '🏁 Finished'
-          color: good
       # Handle failure
       - name: 'On failure: Update deployment status'
         if: failure()
@@ -524,13 +414,3 @@ jobs:
           log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - name: 'On failure: Notify Slack'
-        if: failure()
-        uses: equalogic/action-slack-notify-build@v2.0.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DEPLOY_BOT_TOKEN }}
-        with:
-          message_id: ${{ needs.prepare.outputs.slack-message-id }}
-          channel: ${{ inputs.slack-channel }}
-          status: '☠️ Failed to deploy service'
-          color: danger
