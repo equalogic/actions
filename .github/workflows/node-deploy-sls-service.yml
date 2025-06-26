@@ -1,0 +1,92 @@
+name: Deploy ECS
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        description: Deployment stage
+        required: true
+        type: string
+      app-name:
+        description: Application name
+        required: true
+        type: string
+      deployment-id:
+        description: ID of GitHub deployment
+        required: true
+        type: string
+      params-provider:
+        description: Where to fetch environment parameters from (doppler)
+        required: false
+        default: doppler
+        type: string
+
+permissions:
+  checks: write
+  contents: read
+  deployments: write
+  id-token: write
+  packages: read
+  statuses: read
+
+env:
+  STAGE: ${{ inputs.stage }}
+
+jobs:
+  #
+  # sls-service job
+  #
+  sls-service:
+    name: Service update
+    environment: ${{ inputs.stage }}
+    runs-on: ubuntu-latest
+    steps:
+      # Setup
+      - uses: actions/checkout@v4
+      - name: Setup Node.js and NPM
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          always-auth: true
+          registry-url: https://registry.npmjs.org
+      - name: Setup GitHub package registry authentication
+        uses: actions/setup-node@v4
+        with:
+          registry-url: 'https://npm.pkg.github.com'
+          always-auth: true
+          token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      - name: Install dependencies with NPM
+        run: npm ci --production=false
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      # Parameters and authentication
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ vars.DEPLOY_AWS_ROLE_ARN }}
+          role-session-name: gh-actions
+          aws-region: ${{ vars.DEPLOY_AWS_REGION }}
+      - if: inputs.params-provider == 'doppler'
+        name: Read environment parameters from Doppler
+        uses: dopplerhq/secrets-fetch-action@v1.2.0
+        id: doppler
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          inject-env-vars: true
+      # Deploy Serverless service
+      - name: Deploy Serverless service
+        run: npm run serverless -- deploy --stage ${{ inputs.stage }}
+        env:
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+      # Handle failure
+      - name: 'On failure: Update deployment status'
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ inputs.deployment-id }}
+          state: failure
+          log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

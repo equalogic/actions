@@ -1,0 +1,128 @@
+name: Deploy Prepare
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        description: Deployment stage
+        required: true
+        type: string
+      app-name:
+        description: Application name
+        required: true
+        type: string
+      check-ecr-image:
+        description: Whether to check for an existing image in ECR
+        required: false
+        default: true
+        type: boolean
+      params-provider:
+        description: Where to fetch environment parameters from (ssm, doppler)
+        required: false
+        default: ssm
+        type: string
+    outputs:
+      deployment-id:
+        description: ID of GitHub deployment
+        value: ${{ jobs.prepare.outputs.deployment-id }}
+      existing-image-found:
+        description: Whether an existing image was found in ECR
+        value: ${{ jobs.prepare.outputs.existing-image-found }}
+      image-name:
+        description: Name of Docker image to be deployed
+        value: ${{ jobs.prepare.outputs.image-name }}
+
+permissions:
+  checks: write
+  contents: read
+  deployments: write
+  id-token: write
+  packages: read
+  statuses: read
+
+env:
+  STAGE: ${{ inputs.stage }}
+
+jobs:
+  #
+  # prepare job
+  #
+  prepare:
+    name: Prepare
+    environment: ${{ inputs.stage }}
+    outputs:
+      deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+      existing-image-found: ${{ steps.existing-image.outputs.found }}
+      image-name: ${{ steps.existing-image.outputs.name }}
+    runs-on: ubuntu-latest
+    steps:
+      # Setup
+      - uses: actions/checkout@v4
+      - name: Determine build version
+        run: |
+          echo APP_VERSION="${STAGE}-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+          echo IMAGE_VERSION="sha-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+      # Status
+      - uses: chrnorm/deployment-action@v2
+        name: Create GitHub deployment
+        id: deployment
+        with:
+          token: ${{ github.token }}
+          environment: ${{ inputs.stage }}
+          initial-status: pending
+          log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      # Parameters and authentication
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ vars.DEPLOY_AWS_ROLE_ARN }}
+          role-session-name: gh-actions
+          aws-region: ${{ vars.DEPLOY_AWS_REGION }}
+      - if: inputs.params-provider == 'ssm'
+        name: Read environment parameters from SSM
+        uses: equalogic/action-aws-ssm-to-dotenv@v1.5.0
+        with:
+          ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
+          format: dotenv
+          output: .env
+          decryption: true
+      - if: inputs.params-provider == 'ssm'
+        name: Load parameters to workflow environment
+        run: cat .env >> $GITHUB_ENV
+      - if: inputs.params-provider == 'doppler'
+        name: Read environment parameters from Doppler
+        uses: dopplerhq/secrets-fetch-action@v1.2.0
+        id: doppler
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          inject-env-vars: true
+      # Check if image already exists in ECR
+      - if: inputs.check-ecr-image
+        name: Log in to Amazon ECR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+      - if: inputs.check-ecr-image
+        name: Look for existing image in ECR
+        id: existing-image
+        shell: bash {0}
+        run: |
+          aws ecr describe-images --repository-name=${{ env.DOCKER_REPOSITORY_APP }} --image-ids=imageTag=${{ env.IMAGE_VERSION }}
+          if [[ $? == 0 ]]; then
+            echo "::notice title=Docker::Existing image with tag ${{ env.IMAGE_VERSION }} was found in repository ${{ env.DOCKER_REPOSITORY_APP }}"
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+          echo "name=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}:${{ env.IMAGE_VERSION }}" >> $GITHUB_OUTPUT
+      # Handle failure
+      - name: 'On failure: Update deployment status'
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: failure
+          log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

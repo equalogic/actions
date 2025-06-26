@@ -1,0 +1,130 @@
+name: Node Deploy Finalise
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        description: Deployment stage
+        required: true
+        type: string
+      app-name:
+        description: Application name
+        required: true
+        type: string
+      deployment-id:
+        description: ID of GitHub deployment
+        required: true
+        type: string
+      params-provider:
+        description: Where to fetch environment parameters from (ssm, doppler)
+        required: false
+        default: ssm
+        type: string
+      sentry-release-prefix:
+        description: Sentry release prefix
+        required: false
+        type: string
+      graphql-schema-file:
+        description: Path to GraphQL schema file for Apollo Studio
+        required: false
+        type: string
+      apollo-graph-id:
+        description: Apollo Studio graph ID
+        required: false
+        type: string
+
+permissions:
+  checks: write
+  contents: read
+  deployments: write
+  id-token: write
+  packages: read
+  statuses: read
+
+env:
+  STAGE: ${{ inputs.stage }}
+
+jobs:
+  #
+  # finalise job
+  #
+  finalise:
+    name: Finalise deployment
+    environment: ${{ inputs.stage }}
+    runs-on: ubuntu-latest
+    steps:
+      # Setup
+      - uses: actions/checkout@v4
+      - name: Determine release version
+        run: |
+          echo APP_VERSION="${STAGE}-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+          echo IMAGE_VERSION="sha-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+      # Parameters and authentication
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ vars.DEPLOY_AWS_ROLE_ARN }}
+          role-session-name: gh-actions
+          aws-region: ${{ vars.DEPLOY_AWS_REGION }}
+      - if: inputs.params-provider == 'ssm'
+        name: Read environment parameters from SSM
+        uses: equalogic/action-aws-ssm-to-dotenv@v1.5.0
+        with:
+          ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
+          format: dotenv
+          output: .env
+          decryption: true
+      - if: inputs.params-provider == 'ssm'
+        name: Load parameters to workflow environment
+        run: cat .env >> $GITHUB_ENV
+      - if: inputs.params-provider == 'doppler'
+        name: Read environment parameters from Doppler
+        uses: dopplerhq/secrets-fetch-action@v1.2.0
+        id: doppler
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          inject-env-vars: true
+      # Publish Apollo schema update
+      - if: inputs.graphql-schema-file != '' && inputs.apollo-graph-id != ''
+        name: Install Rover
+        run: |
+          curl -sSL https://rover.apollo.dev/nix/v0.11.1 | sh
+          echo "$HOME/.rover/bin" >> $GITHUB_PATH
+      - if: inputs.graphql-schema-file != '' && inputs.apollo-graph-id != ''
+        name: Publish GraphQL schema to Apollo Studio
+        run: rover graph publish ${{ inputs.apollo-graph-id }}@${{ inputs.stage }} --schema ${{ inputs.graphql-schema-file }}
+        env:
+          APOLLO_KEY: ${{ secrets.APOLLO_KEY }}
+          APOLLO_VCS_COMMIT: ${{ github.sha }}
+      # Deploy Sentry release
+      - if: inputs.sentry-release-prefix != ''
+        name: Deploy Sentry release
+        continue-on-error: true
+        uses: tclindner/sentry-release-deploy-action@v1.0.0
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        with:
+          versionPrefix: ${{ inputs.sentry-release-prefix }}@
+          version: ${{ env.APP_VERSION }}
+          environment: ${{ inputs.stage }}
+      # Status
+      - name: Update deployment status
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ inputs.deployment-id }}
+          state: success
+          description: ${{ inputs.app-name }} @ ${{ env.IMAGE_VERSION }} deployed to ${{ inputs.stage }}
+          environment-url: https://${{ env.APP_DOMAIN }}${{ env.APP_PATH }}
+          log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      # Handle failure
+      - name: 'On failure: Update deployment status'
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ inputs.deployment-id }}
+          state: failure
+          log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

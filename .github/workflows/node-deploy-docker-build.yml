@@ -1,0 +1,196 @@
+name: Node Deploy Docker Build
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        description: Deployment stage
+        required: true
+        type: string
+      app-name:
+        description: Application name
+        required: true
+        type: string
+      deployment-id:
+        description: ID of GitHub deployment
+        required: true
+        type: string
+      build-check-command:
+        description: Command to run after building the application to check it worked correctly
+        required: false
+        type: string
+      bootstrap-command:
+        description: Command to run after building the application
+        required: false
+        type: string
+      static-source-path:
+        description: Source directory containing static assets to be uploaded to S3 during deployment
+        required: false
+        type: string
+      static-destination-path:
+        description: Destination prefix (appended to /$app-name/$version) in S3 where static assets should be uploaded to
+        required: false
+        type: string
+      sentry-release:
+        description: Create Sentry release
+        required: false
+        type: boolean
+      sentry-release-prefix:
+        description: Sentry release prefix
+        required: false
+        type: string
+    outputs:
+      image-name:
+        description: Name of Docker image to be deployed
+        value: ${{ jobs.docker-build.outputs.image-name }}
+
+permissions:
+  checks: write
+  contents: read
+  deployments: write
+  id-token: write
+  packages: read
+  statuses: read
+
+env:
+  STAGE: ${{ inputs.stage }}
+
+jobs:
+  #
+  # docker-build job
+  #
+  docker-build:
+    name: Build Docker image
+    environment: ${{ inputs.stage }}
+    outputs:
+      image-name: ${{ steps.build-result.outputs.image-name }}
+    runs-on: ubuntu-latest
+    steps:
+      # Setup
+      - uses: actions/checkout@v4
+      - name: Determine build version
+        run: |
+          echo APP_VERSION="${STAGE}-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+          echo IMAGE_VERSION="sha-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+      # Parameters and authentication
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ vars.DEPLOY_AWS_ROLE_ARN }}
+          role-session-name: gh-actions
+          aws-region: ${{ vars.DEPLOY_AWS_REGION }}
+      - name: Read environment parameters from SSM
+        uses: equalogic/action-aws-ssm-to-dotenv@v1.5.0
+        with:
+          ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
+          format: dotenv
+          output: .env
+          decryption: true
+      - name: Load parameters to workflow environment
+        run: cat .env >> $GITHUB_ENV
+      - name: Log in to Amazon ECR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+      # Dependencies
+      - name: Setup Node.js and NPM
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          always-auth: true
+          registry-url: https://registry.npmjs.org
+      - name: Setup GitHub package registry authentication
+        uses: actions/setup-node@v4
+        with:
+          registry-url: 'https://npm.pkg.github.com'
+          always-auth: true
+          token: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      - name: Install dependencies with NPM
+        run: npm ci --production=false
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
+      # Compile sources
+      - name: Build application
+        run: npm run build
+        env:
+          CI: true
+          VERSION: ${{ env.APP_VERSION }}
+          SENTRY_RELEASE_PREFIX: ${{ inputs.sentry-release-prefix }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      - if: inputs.build-check-command != ''
+        name: Check build worked correctly
+        run: ${{ inputs.build-check-command }}
+      - if: inputs.bootstrap-command != ''
+        name: Run bootstrap command
+        run: ${{ inputs.bootstrap-command }}
+      # Upload static assets to S3
+      - if: inputs.static-source-path != ''
+        name: Upload static assets to S3
+        run: aws s3 sync ${{ inputs.static-source-path }} s3://${{ env.STATIC_S3_BUCKET }}/${{ inputs.app-name }}/${{ env.APP_VERSION }}${{ inputs.static-destination-path }} --no-progress --follow-symlinks --delete
+      # Build Docker image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      - name: Determine Docker tags from build metadata
+        id: docker-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}
+          flavor: |
+            latest=${{ github.ref == 'refs/heads/master' }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+      - name: Build and push app image to ECR
+        uses: docker/build-push-action@v6
+        with:
+          tags: ${{ steps.docker-meta.outputs.tags }}
+          labels: ${{ steps.docker-meta.outputs.labels }}
+          pull: false
+          push: true
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            VERSION=${{ env.APP_VERSION }}
+            GITHUB_TOKEN=${{ secrets.BUILD_USER_TOKEN || github.token }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+      - name: Build result
+        id: build-result
+        run: echo "image-name=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}:${{ env.IMAGE_VERSION }}" >> $GITHUB_OUTPUT
+      - name: Move cache
+        # This ugly bit is necessary if you don't want your cache to grow forever till it hits GitHub's limit of 5GB.
+        # Temp fix for https://github.com/docker/build-push-action/issues/252 and https://github.com/moby/buildkit/issues/1896
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+      # Sentry release
+      - if: inputs.sentry-release
+        name: Create Sentry.io release
+        continue-on-error: true
+        uses: equalogic/sentry-releases-action@v2.0.0
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        with:
+          releaseNamePrefix: ${{ inputs.sentry-release-prefix || inputs.app-name }}@
+          tagName: ${{ env.APP_VERSION }}
+          sourceMapOptions: '{ "include": ["dist"], "rewrite": true }'
+      # Handle failure
+      - name: 'On failure: Update deployment status'
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ inputs.deployment-id }}
+          state: failure
+          log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
