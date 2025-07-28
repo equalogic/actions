@@ -261,7 +261,7 @@ jobs:
             ${{ runner.os }}-buildx-
       - name: Determine Docker tags from build metadata
         id: docker-meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}
           flavor: |
