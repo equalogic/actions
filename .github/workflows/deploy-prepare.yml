@@ -80,7 +80,7 @@ jobs:
           aws-region: ${{ vars.DEPLOY_AWS_REGION }}
       - if: inputs.params-provider == 'ssm'
         name: Read environment parameters from SSM
-        uses: equalogic/action-aws-ssm-to-dotenv@v1.5.0
+        uses: equalogic/action-aws-ssm-to-dotenv@v1.7.0
         with:
           ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
           format: dotenv
