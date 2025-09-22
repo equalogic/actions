@@ -13,7 +13,7 @@ on:
         type: string
       deployment-id:
         description: ID of GitHub deployment
-        required: true
+        required: false
         type: string
       build-check-command:
         description: Command to run after building the application to check it worked correctly
@@ -181,7 +181,7 @@ jobs:
           sourceMapOptions: '{ "include": ["dist"], "rewrite": true }'
       # Handle failure
       - name: 'On failure: Update deployment status'
-        if: failure()
+        if: failure() && inputs.deployment-id
         uses: chrnorm/deployment-status@v2
         with:
           token: ${{ github.token }}
