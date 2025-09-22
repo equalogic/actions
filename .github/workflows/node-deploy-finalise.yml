@@ -68,15 +68,10 @@ jobs:
           aws-region: ${{ vars.DEPLOY_AWS_REGION }}
       - if: inputs.params-provider == 'ssm'
         name: Read environment parameters from SSM
-        uses: equalogic/action-aws-ssm-to-dotenv@v1.5.0
+        uses: equalogic/action-aws-ssm-to-dotenv@v2.1.4
         with:
           ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
-          format: dotenv
-          output: .env
           decryption: true
-      - if: inputs.params-provider == 'ssm'
-        name: Load parameters to workflow environment
-        run: cat .env >> $GITHUB_ENV
       - if: inputs.params-provider == 'doppler'
         name: Read environment parameters from Doppler
         uses: dopplerhq/secrets-fetch-action@v1.2.0

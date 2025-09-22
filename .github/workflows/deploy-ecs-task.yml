@@ -1,4 +1,4 @@
-name: Deploy ECS
+name: Deploy ECS Task
 
 on:
   workflow_call:
@@ -67,22 +67,29 @@ jobs:
         with:
           registry: ${{ env.DOCKER_REGISTRY }}
       # Tag Docker image with stage name
+      # TODO: Roll this back if deployment fails?
       - name: Apply ${{ inputs.stage }} tag to Docker image
         uses: akhilerm/tag-push-action@v2.2.0
         with:
           src: ${{ inputs.image-name }}
           dst: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}:${{ inputs.stage }}
       # Deploy ECS Task
-      - name: Deploy ECS task update
-        uses: donaldpiret/ecs-deploy@v0.3.0
+      - name: Fill in the new image ID in the ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          action: deploy
+          task-definition: task-definition.${{ inputs.ecs-service-name || inputs.app-name }}_${{ inputs.stage }}.json
+          container-name: ${{ env.CONTAINER_NAME_APP }}
+          image: ${{ inputs.image-name }}
+      - name: Deploy ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ inputs.ecs-service-name || inputs.app-name }}
           cluster: ${{ env.CLUSTER_NAME }}
-          target: ${{ inputs.ecs-service-name || inputs.app-name }} # service name
-          image: >-
-            ${{ env.CONTAINER_NAME_APP }} ${{ inputs.image-name }}
-          rollback: true
-          timeout: 600
+          force-new-deployment: false
+          wait-for-service-stability: true
+          wait-for-minutes: 10
       # Handle failure
       - name: 'On failure: Update deployment status'
         if: failure()

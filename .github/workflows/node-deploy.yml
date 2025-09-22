@@ -109,14 +109,10 @@ jobs:
           role-session-name: gh-actions
           aws-region: ${{ vars.DEPLOY_AWS_REGION }}
       - name: Read environment parameters from SSM
-        uses: equalogic/action-aws-ssm-to-dotenv@v1.5.0
+        uses: equalogic/action-aws-ssm-to-dotenv@v2.1.4
         with:
           ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
-          format: dotenv
-          output: .env
           decryption: true
-      - name: Load parameters to workflow environment
-        run: cat .env >> $GITHUB_ENV
       - name: Log in to Amazon ECR
         uses: docker/login-action@v3
         with:
@@ -170,14 +166,10 @@ jobs:
           role-session-name: gh-actions
           aws-region: ${{ vars.DEPLOY_AWS_REGION }}
       - name: Read environment parameters from SSM
-        uses: equalogic/action-aws-ssm-to-dotenv@v1.5.0
+        uses: equalogic/action-aws-ssm-to-dotenv@v2.1.4
         with:
           ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
-          format: dotenv
-          output: .env
           decryption: true
-      - name: Load parameters to workflow environment
-        run: cat .env >> $GITHUB_ENV
       - name: Log in to Amazon ECR
         uses: docker/login-action@v3
         with:
@@ -341,14 +333,10 @@ jobs:
           role-session-name: gh-actions
           aws-region: ${{ vars.DEPLOY_AWS_REGION }}
       - name: Read environment parameters from SSM
-        uses: equalogic/action-aws-ssm-to-dotenv@v1.5.0
+        uses: equalogic/action-aws-ssm-to-dotenv@v2.1.4
         with:
           ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
-          format: dotenv
-          output: .env
           decryption: true
-      - name: Load parameters to workflow environment
-        run: cat .env >> $GITHUB_ENV
       - name: Log in to Amazon ECR
         uses: docker/login-action@v3
         with:
