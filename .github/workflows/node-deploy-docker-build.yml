@@ -15,6 +15,11 @@ on:
         description: ID of GitHub deployment
         required: false
         type: string
+      build-command:
+        description: Command to run to build the application
+        required: false
+        default: npm run build
+        type: string
       build-check-command:
         description: Command to run after building the application to check it worked correctly
         required: false
@@ -107,8 +112,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.BUILD_USER_TOKEN || github.token }}
       # Compile sources
-      - name: Build application
-        run: npm run build
+      - if: inputs.build-command != ''
+        name: Build application
+        run: ${{ inputs.build-command }}
         env:
           CI: true
           VERSION: ${{ env.APP_VERSION }}
