@@ -86,7 +86,7 @@ jobs:
           decryption: true
       - if: inputs.params-provider == 'doppler'
         name: Read environment parameters from Doppler
-        uses: dopplerhq/secrets-fetch-action@v1.2.0
+        uses: dopplerhq/secrets-fetch-action@v1.3.0
         id: doppler
         with:
           doppler-token: ${{ secrets.DOPPLER_TOKEN }}
