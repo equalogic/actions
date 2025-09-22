@@ -1,0 +1,103 @@
+name: Deploy ECS Task
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        description: Deployment stage
+        required: true
+        type: string
+      app-name:
+        description: Application name
+        required: true
+        type: string
+      deployment-id:
+        description: ID of GitHub deployment
+        required: true
+        type: string
+      ecs-service-name:
+        description: ECS service name to deploy into (defaults to value of app-name)
+        required: false
+        type: string
+      image-name:
+        description: Name of Docker image to be deployed
+        required: true
+        type: string
+
+permissions:
+  checks: write
+  contents: read
+  deployments: write
+  id-token: write
+  packages: read
+  statuses: read
+
+env:
+  STAGE: ${{ inputs.stage }}
+
+jobs:
+  #
+  # ecs-service job
+  #
+  ecs-service:
+    name: Service update
+    environment: ${{ inputs.stage }}
+    runs-on: ubuntu-latest
+    steps:
+      # Setup
+      - uses: actions/checkout@v4
+      - name: Determine release version
+        run: |
+          echo APP_VERSION="${STAGE}-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+          echo IMAGE_VERSION="sha-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+      # Parameters and authentication
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ vars.DEPLOY_AWS_ROLE_ARN }}
+          role-session-name: gh-actions
+          aws-region: ${{ vars.DEPLOY_AWS_REGION }}
+      - name: Read environment parameters from SSM
+        uses: equalogic/action-aws-ssm-to-dotenv@v2.1.4
+        with:
+          ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
+          decryption: true
+      - name: Log in to Amazon ECR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+      # Tag Docker image with stage name
+      # TODO: Roll this back if deployment fails?
+      - name: Apply ${{ inputs.stage }} tag to Docker image
+        uses: akhilerm/tag-push-action@v2.2.0
+        with:
+          src: ${{ inputs.image-name }}
+          dst: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REPOSITORY_APP }}:${{ inputs.stage }}
+      # Deploy ECS Task
+      - name: Fill in the new image ID in the ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.${{ inputs.ecs-service-name || inputs.app-name }}_${{ inputs.stage }}.json
+          container-name: ${{ env.CONTAINER_NAME_APP }}
+          image: ${{ inputs.image-name }}
+      - name: Deploy ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ inputs.ecs-service-name || inputs.app-name }}
+          cluster: ${{ env.CLUSTER_NAME }}
+          force-new-deployment: false
+          wait-for-service-stability: true
+          wait-for-minutes: 10
+      # Handle failure
+      - name: 'On failure: Update deployment status'
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ inputs.deployment-id }}
+          state: failure
+          log-url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
