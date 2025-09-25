@@ -176,7 +176,7 @@ jobs:
           registry: ${{ env.DOCKER_REGISTRY }}
       # Dependencies
       - name: Setup Node.js and NPM
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -184,7 +184,7 @@ jobs:
           registry-url: https://registry.npmjs.org
       - if: inputs.workspaces != ''
         name: Setup GitHub package registry authentication
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           registry-url: 'https://npm.pkg.github.com'
           always-auth: true

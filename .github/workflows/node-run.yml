@@ -25,14 +25,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js and NPM
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
           always-auth: true
           registry-url: https://registry.npmjs.org
       - name: Setup GitHub package registry authentication
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           registry-url: 'https://npm.pkg.github.com'
           always-auth: true
