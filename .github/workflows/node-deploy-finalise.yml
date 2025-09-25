@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Setup
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Determine release version
         run: |
           echo APP_VERSION="${STAGE}-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
