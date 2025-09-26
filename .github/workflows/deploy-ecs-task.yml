@@ -11,6 +11,10 @@ on:
         description: Application name
         required: true
         type: string
+      task-definition:
+        description: Filename of task definition file
+        required: true
+        type: string
       deployment-id:
         description: ID of GitHub deployment
         required: true
@@ -78,7 +82,7 @@ jobs:
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: task-definition.${{ inputs.ecs-service-name || inputs.app-name }}_${{ inputs.stage }}.json
+          task-definition: ${{ inputs.task-definition }}
           container-name: ${{ env.CONTAINER_NAME_APP }}
           image: ${{ inputs.image-name }}
       - name: Deploy ECS task definition
