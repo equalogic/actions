@@ -88,7 +88,7 @@ jobs:
           tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${paths[@]}
       - if: inputs.workspaces != ''
         name: Persisting node_modules artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: node_modules.tar.zstd
           path: node_modules.tar.zstd
@@ -108,7 +108,7 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Restore node_modules artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: node_modules.tar.zstd
       - name: Unarchive node_modules
@@ -150,7 +150,7 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Restore node_modules artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: node_modules.tar.zstd
       - name: Unarchive node_modules
@@ -167,7 +167,7 @@ jobs:
       - name: Archive build
         run: tar --use-compress-program "zstd -T0 --long=31 -1" -cf dist.tar.zstd -P ${{ inputs.dist-paths }}
       - name: Persisting build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist.tar.zstd
           path: dist.tar.zstd
