@@ -83,9 +83,21 @@ jobs:
               $(npm query .workspace | node -e "console.log(JSON.parse(require('fs').readFileSync(0)).map(w=>w.location+'/node_modules').join('\n'))")
             )
           fi
+          existing=()
+          for p in ${paths[@]}; do
+            if [ -d "$p" ]; then
+              existing+=("$p")
+            else
+              echo "Skipping nonexistent path: $p"
+            fi
+          done
+          if [ ${#existing[@]} -eq 0 ]; then
+            echo "No node_modules directories found to archive" >&2
+            exit 1
+          fi
           echo "Paths to be archived:"
-          echo ${paths[@]}
-          tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${paths[@]}
+          echo ${existing[@]}
+          tar --use-compress-program "zstd -T0 --long=31 -1" -cf node_modules.tar.zstd -P ${existing[@]}
       - if: inputs.workspaces != ''
         name: Persisting node_modules artifact
         uses: actions/upload-artifact@v4
