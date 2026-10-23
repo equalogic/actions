@@ -61,7 +61,7 @@ jobs:
           ssm-path: /ci/${{ inputs.stage }}/${{ inputs.app-name }}
           decryption: true
       - name: Log in to Amazon ECR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.DOCKER_REGISTRY }}
       # Build Docker image
