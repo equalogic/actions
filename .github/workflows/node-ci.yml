@@ -84,7 +84,7 @@ jobs:
             )
           fi
           existing=()
-          for p in "${paths[@]}"; do
+          for p in ${paths[@]}; do
             if [ -d "$p" ]; then
               existing+=("$p")
             else
